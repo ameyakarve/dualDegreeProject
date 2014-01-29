@@ -31,6 +31,7 @@ typedef Polyhedron::HalfedgeDS             HalfedgeDS;
 // constants
 const int slow_distance_grid_size = 100;
 const int fast_distance_grid_size = 20;
+const double SINE40 = 0.6428;
 std::vector<double> coords;
 std::vector<int>    tris;
 
@@ -192,11 +193,38 @@ void Scene::update_bbox()
     /*
     Use Custom OBJ Loader, override m_pPolyhedron
     Save Vertices and Edges to a vector that I can mess around with
-    Build a graph of facets maybe?
+    Build a graph of all facets with a solid edge?
 
     */
+    
+    for(int i = 0; i < coords.size(); i++) std::cout<<coords[i]<<" ";
+        std::cout<<std::endl;
+    for(int i = 0; i < tris.size(); i++) std::cout<<tris[i]<<" ";
+        std::cout<<std::endl;
+    std::vector < Vector > facetNormals;
+    for (int i = 0; i < tris.size(); ++i) {
+        /* code */
+        int coordsIndex = 3*tris[i];
+        Vector v1(coords[coordsIndex],coords[coordsIndex+1], coords[coordsIndex+2] );
+        i++;
+        coordsIndex = 3*tris[i];
+        Vector v2(coords[coordsIndex],coords[coordsIndex+1], coords[coordsIndex+2] );
+        i++;
+        coordsIndex = 3*tris[i];
+        Vector v3(coords[coordsIndex],coords[coordsIndex+1], coords[coordsIndex+2] );
+        Vector v = cross_product(v3-v2, v2-v1);
+        v = v / std::sqrt(v.squared_length());
+        facetNormals.push_back(v);
+    }
+    std::cout<<std::endl;
+    std::set < std::pair <int, int> > strongEdges;
+    std::map < int, std::set<int> > FacetMap;
+    for(int i = 0; i < tris.size()/3; i++) {
+        std::set<int> v;
+        v.insert(i);
+        FacetMap[i] = v;
+    }
 
-    std::vector < std::pair <int, int> > FacetMap;
     for(int i = 0; i < tris.size()/3; i++) {
         for(int j = i+1; j < tris.size()/3; j++) {
             int sum = 0;
@@ -206,11 +234,39 @@ void Scene::update_bbox()
                 }
             }
             if(sum==2) {
-                std::pair <int, int> p = std::make_pair(i,j);
-                FacetMap.push_back(p);
+                if(facetNormals[i]* facetNormals[j] > SINE40) {
+                    std::pair <int, int> p = std::make_pair(i,j);
+                    FacetMap[i].insert(j);
+                    FacetMap[j].insert(i);
+                    //std::cout<<sum<< "is sum"<<std::endl;
+                    strongEdges.insert(p);    
+                }
+                
             }
         }
     }
+    //Start grouping Facets
+    std::map <int, int> groupingMap;
+    /*
+        Every Facet maps to the lowest of itself or a valid neighbouring facet
+    */
+    //Initialize groupingMap
+    for (int i = 0; i < FacetMap.size(); ++i)
+    {
+        /* code */
+        groupingMap[i] = *(FacetMap[i].begin());
+    }
+    bool changesMade = false;
+    for (int i = 0; i < groupingMap.size(); ++i) {
+        /* code */
+        while(groupingMap[i]!=groupingMap[groupingMap[i]]) {
+            groupingMap[i] = groupingMap[groupingMap[i]];
+        }
+        std::cout<<i<<" "<<groupingMap[i]<<"\n";
+
+    }
+    std::vector< std::set <int> > FacetGroups;
+
     /*
     Build a custom Facet class maybe? Include normals, edges adjacent, ID
     Build a custom Edge class. Include Facets, angle across facets, ID
